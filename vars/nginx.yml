@@ -1,0 +1,59 @@
+# (c) 2017 DataNexus Inc.  All Rights Reserved
+#
+# Defaults that are necessary for all deployments of
+# NGINX
+---
+application: nginx
+
+# defines the packages that must be installed for all NGINX nodes
+nginx_package_list: ["epel-release", "httpd-tools"]
+
+# these parameters are default values for the facts used when creating
+# accounts to use with the NGINX server(s)
+nginx_admin_user: admin
+nginx_power_user: power_user
+nginx_normal_user: non_power_user
+
+# if set to true, this parameter can be used to secure the NGINX instance
+# via Basic Authentication
+nginx_basic_auth: false
+
+# if set, this parameter can be used to pass in a hash map of certificates
+# to use with the HTTPS interface (if not set, then self-signed certificates
+# will be generated)
+nginx_certificate_hash: {}
+
+# ports to listen on
+nginx_http_port: 80
+nginx_https_port: 443
+
+# if set to true, then any HTTP requests received will be redirected as HTTPS
+# requests (set to true by default)
+nginx_https_only: false
+
+# path used to access private keys (defaults to the current working directory)
+private_key_path: "{{playbook_dir}}"
+
+# this variable defines the default ensemble that will be created when
+# deploying to an AWS or OpenStack environment; the value defined here will
+# result in the deployment of a three-node storm cluster
+node_map:
+  - { application: nginx, count: 1 }
+
+# and define a set of application-specific security group rules; this list of
+# dictionary entries is used when setting up an application-specific security
+# on the network used by this application; the rules defined here allow for
+# access over the internal and external subnet for:
+#
+#  - HTTP client connections via the nginx_http_port (port 80 by default)
+#  - HTTPS client connections via the nginx_https_port (port 443 by default)
+#
+# this set of rules should, more than likely, not be overridden; if it is
+# overridden, then care should be taken to at least maintain this default list
+# of application-specific security group rules or the nodes in the cluster may
+# not be able to communicate with each other
+application_sg_rules:
+  - { proto: tcp, from_port: "{{nginx_http_port}}", to_port: "{{nginx_http_port}}", cidr_ip: "{{external_subnet}}" }
+  - { proto: tcp, from_port: "{{nginx_https_port}}", to_port: "{{nginx_https_port}}", cidr_ip: "{{external_subnet}}" }
+  - { proto: tcp, from_port: "{{nginx_http_port}}", to_port: "{{nginx_http_port}}", cidr_ip: "{{internal_subnet}}" }
+  - { proto: tcp, from_port: "{{nginx_https_port}}", to_port: "{{nginx_https_port}}", cidr_ip: "{{internal_subnet}}" }

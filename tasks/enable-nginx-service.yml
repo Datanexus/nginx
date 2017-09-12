@@ -1,0 +1,8 @@
+# (c) 2017 DataNexus Inc.  All Rights Reserved
+---
+# enable the nginx service
+- name: Enable nginx service on boot
+  service:
+    name: nginx
+    enabled: yes
+  become: true

@@ -1,0 +1,8 @@
+# (c) 2017 DataNexus Inc.  All Rights Reserved
+---
+# start the nginx service
+- name: Start nginx service
+  service:
+    name: nginx
+    state: restarted
+  become: true

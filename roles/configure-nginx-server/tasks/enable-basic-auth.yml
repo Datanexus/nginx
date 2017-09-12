@@ -1,0 +1,26 @@
+# (c) 2017 DataNexus Inc.  All Rights Reserved
+---
+# create a username/password pair to use for authentication against the
+# active NGINX server for our two default users (the `nginx_admin_user` and
+# the `nginx_power_user`)
+- block:
+  - name: Create new random passwords for basic authentication
+    command: htpasswd -cb /etc/nginx/.htpasswd "{{nginx_admin_user}}" "{{lookup('password', 'credentials/' + nginx_admin_user + '/password.txt length=15 chars=ascii_letters,digits,hexdigits')}}"
+  - command: htpasswd -b /etc/nginx/.htpasswd "{{nginx_power_user}}" "{{lookup('password', 'credentials/' + nginx_power_user + '/password.txt length=15 chars=ascii_letters,digits,hexdigits')}}"
+  - command: htpasswd -b /etc/nginx/.htpasswd "{{nginx_normal_user}}" "{{lookup('password', 'credentials/' + nginx_normal_user + '/password.txt length=15 chars=ascii_letters,digits,hexdigits')}}"
+  # and configure the nginx server to use that file for basic authentication
+  # for both HTTPS and (if enabled) HTTP requests
+  - name: Add basic authentication for HTTPS requests
+    lineinfile:
+      dest: /etc/nginx/nginx.conf
+      line: "        auth_basic \"Login\";\n        auth_basic_user_file /etc/nginx/.htpasswd;"
+      insertafter: ssl_prefer_server_ciphers
+      state: present
+  - name: If enabled, add basic authentication for HTTP requests
+    lineinfile:
+      dest: /etc/nginx/nginx.conf
+      line: "        auth_basic \"Login\";\n        auth_basic_user_file /etc/nginx/.htpasswd;"
+      insertafter: "listen.*:{{nginx_http_port}} default_server;"
+      state: present
+    when: not(nginx_https_only | bool)
+  become: true

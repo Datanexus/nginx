@@ -1,0 +1,86 @@
+#!/usr/bin/env ansible-playbook
+#
+# (c) 2017 DataNexus Inc.  All Rights Reserved
+---
+# Build our storm and zookeeper host groups
+- name: Create nginx host group
+  hosts: localhost
+  gather_facts: yes
+  vars_files:
+    - vars/nginx.yml
+  tasks:
+    # load the 'configuration file' (if one was defined) to get any variables
+    # we might need during this playbook run
+    - name: Load configuration file
+      include_vars:
+        file: "{{config_file | default('config.yml')}}"
+    # if we're using dynamic provisioning; build the host groups from the
+    # meta-data associated with the matching nodes in the selected cloud
+    - block:
+      # if we're deploying instances in an cloud environment, ensure that there
+      # are an appriately tagged set of nodes already (and launch them if they
+      # don't exist based on the node_map entries for this application)
+      - include_role:
+          name: 'aws'
+        when: cloud is undefined or cloud == 'aws'
+      - include_role:
+          name: 'osp'
+        when: cloud == 'osp'
+      # then, build the zookeeper group from those nodes
+      - include_role:
+          name: build-app-host-groups
+        vars:
+          host_group_list:
+            - name: nginx
+      when: cloud is defined and (cloud == 'aws' or cloud == 'osp')
+
+
+# If we're dynamically provisioning, then do some final configuration on the
+# VMs that were just launched (assuming that we're not re-using existing VMs)
+- name: Complete OS configuration
+  hosts: nginx
+  gather_facts: yes
+  vars_files:
+    - vars/nginx.yml
+  tasks:
+    # first, initialize the play
+    - include_role:
+        name: initialize-play
+      vars:
+        gather_facts: false
+        skip_network_restart: true
+    # if this is a cloud deployment and we need to (re)configure nodes...
+    - block:
+      # then run the `preflight` role to finish the configuration of the nodes
+      # that were just allocated
+      - include_role:
+          name: preflight
+        vars:
+          mountpoint: "/data"
+      # and set a fact indicating that we (re)configured nodes in this play
+      - set_fact:
+          configured_nodes: true
+      when:
+        - cloud is defined and (cloud == 'aws' or cloud == 'osp')
+        - ((force_node_reconfig | default(false)) | bool) or not(hostvars['localhost']['matching_instances_found'])
+
+# And deploy NGINX to the nodes in the `nginx` host group; note that if
+# there is more than one node in the `nginx` host group, those nodes will be
+# configured as a NGINX cluster (in an active-passive configuration)
+- name: Install/configure NGINX server(s)
+  hosts: nginx
+  gather_facts: no
+  vars_files:
+    - vars/nginx.yml
+  vars:
+    - combined_package_list: "{{ (default_packages|default([])) | union(nginx_package_list) | union((install_packages_by_tag|default({})).nginx|default([])) }}"
+    - nginx_nodes: "{{groups['nginx']}}"
+  pre_tasks:
+    # first, initialize the play
+    - include_role:
+        name: initialize-play
+      vars:
+        skip_network_restart: "{{configured_nodes | default(false)}}"
+  roles:
+    # now that we have all of the facts we need, provision the input nodes
+    - role: nginx

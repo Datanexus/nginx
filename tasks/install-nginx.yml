@@ -1,0 +1,9 @@
+# (c) 2017 DataNexus Inc.  All Rights Reserved
+---
+# Install nginx package from epel repository
+- name: Install nginx package
+  yum:
+    name: nginx
+    state: present
+  become: true
+  environment: "{{environment_vars | default({})}}"

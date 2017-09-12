@@ -1,0 +1,52 @@
+# (c) 2017 DataNexus Inc.  All Rights Reserved
+---
+# first, configure our NGINX instances as a cluster for
+# high-availability (only invoked if there is more than one instance)
+- set_fact:
+    api_addr: "{{api_addr.split('\n').0}}"
+- set_fact:
+    nginx_node_priority: "{{(num_hosts | int) - (ngx_nodes.index(api_addr) | int)}}"
+- block:
+  # setup sysctl to allow nginx to bind to non-local (virtual) address
+  - name: Configure sysctl to allow non-local binding
+    sysctl:
+      name: "net.ipv4.ip_nonlocal_bind"
+      value: 1
+      state: present
+  # first, make sure that the `keepalived` package is installed locally
+  # since we'll be using that to control a set of nginx nodes that are
+  # configured for an active-passive failover scenario
+  - name: Install keepalived and dependencies
+    package:
+      name: "{{item}}"
+      state: present
+    with_items:
+      - gcc
+      - kernel-headers
+      - kernel-devel
+      - keepalived
+  # use a Jinja2 template setup the initial keepalived configuration
+  - name: Use template to setup new keepalived configuration
+    template:
+      src: keepalived.conf.j2
+      dest: /etc/keepalived/keepalived.conf
+      mode: 0644
+  # add a `unicast_peer` definition to the configuration file
+  - name: Modify the new configuration to include the other cluster members
+    lineinfile:
+      dest: /etc/keepalived/keepalived.conf
+      line: "    unicast_peer {\n    }"
+      insertafter: "unicast_src_ip"
+      state: present
+  - lineinfile:
+      dest: /etc/keepalived/keepalived.conf
+      line: "        {{item}}"
+      insertafter: "unicast_peer"
+      state: present
+    with_items: "{{ngx_nodes | difference([api_addr]) | reverse | list}}"
+  # then restart keepalived using the new configuration
+  - name: Ensure keepalived is running with new configuration
+    service:
+      name: keepalived
+      state: restarted
+  become: true

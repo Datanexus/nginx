@@ -1,0 +1,29 @@
+# (c) 2017 DataNexus Inc.  All Rights Reserved
+---
+# Setup the certificates needed to handle HTTPS requests, then configure the
+# NGINX instances using the appropriate template
+- block:
+  # ensure the directory we're storing the self-signed certs in exists
+  - name: Ensure that directory for self-signed certs exists
+    file:
+      path: "/etc/nginx/ssl"
+      state: directory
+      owner: nginx
+      group: nginx
+      mode: 0700
+  # if no certificates were passed in, then create self-signed certs for the target nodes
+  - name: Create nginx self-signed certificate
+    command: openssl req -new -nodes -x509 -subj "/C={{nginx_country | default('US')}}/ST={{nginx_state | default('CO')}}/L={{nginx_location | default('Denver')}}/O={{nginx_org | default('IT')}}/CN={{nginx_common_name | default(api_addr)}}" -days 3650 -keyout /etc/nginx/ssl/server.key -out /etc/nginx/ssl/server.crt -extensions v3_ca creates=/etc/nginx/ssl/server.crt
+    when: nginx_certificate_hash == {}
+  # Use the appropriate template to configure the NGINX instances based on the
+  # value of the `nginx_https_only` flag (if true, will configure the instances
+  # so that any HTTP requests are redirected as HTTPS requests, if false will
+  # be configured to support both HTTP and HTTPS requests)
+  - name: Use template to configure nginx
+    template:
+      src: "nginx{{(nginx_https_only | bool) | ternary('-https-only','-http-https')}}.conf.j2"
+      dest: /etc/nginx/nginx.conf
+      owner: nginx
+      group: nginx
+      mode: 0644
+  become: true
