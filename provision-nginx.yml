@@ -36,6 +36,14 @@
             - name: nginx
       - set_fact:
           num_nginx_nodes: "{{groups['nginx'] | default([]) | length}}"
+      # if an existing set of NGINX nodes were found, throw an error unless
+      # the reuse_existing_nodes flag was set to 'true' or 'yes')
+      - block:
+        - name: Fail playbook run if existing nodes found and user did not request reuse
+          fail:
+            msg: "Found an existing set of nodes - {{(groups['nginx'] | to_yaml).split('\n').0}}; aborting playbook run"
+          when: not((reuse_existing_nodes | default(false)) | bool)
+        when: num_nginx_nodes | int > 0
       # if there were no NGINX nodes found, then deploy a matching set of
       # instances into the target cloud environment, ensuring that there
       # are an appropriately tagged, based on the input tags and the node_map
