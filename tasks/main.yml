@@ -3,9 +3,9 @@
 - set_fact:
     ngx_nodes: "{{nginx_nodes | map('extract', hostvars, [('ansible_' + api_iface), 'ipv4', 'address']) | list}}"
     num_hosts: "{{(nginx_nodes + (existing_nodes | default([]))) | length}}"
-- include: install-required-packages.yml static=no
-- include: install-nginx.yml static=no
+- include_tasks: install-required-packages.yml
+- include_tasks: install-nginx.yml
 - include_role:
     name: configure-nginx-server
-- include: enable-nginx-service.yml static=no
-- include: start-nginx-service.yml static=no
+- include_tasks: enable-nginx-service.yml
+- include_tasks: start-nginx-service.yml

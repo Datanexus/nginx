@@ -1,7 +1,7 @@
 # (c) 2017 DataNexus Inc.  All Rights Reserved
 ---
-- include: setup-active-passive.yml static=no
+- include_tasks: setup-active-passive.yml
   when: nginx_virtual_ip is defined and ((nginx_nodes | default([])) | length) > 1
-- include: "configure-nginx-server.yml static=no"
-- include: "enable-basic-auth.yml static=no"
+- include_tasks: "configure-nginx-server.yml
+- include_tasks: enable-basic-auth.yml
   when: nginx_basic_auth | bool
